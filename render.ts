@@ -656,30 +656,6 @@ namespace rn {
       }
    }
 
-   /*
-   export abstract class Subscript extends Single {
-      abstract get value(): string;
-      protected get doDot(): boolean { return false; }
-      fixed(g: Render2D): Vector2D {
-         this.children[0].position = (0).vec(0);
-         let sz = this.children[0].fixedSz(g);
-         return sz.addX(g.textWidth(this.value, smallFont));
-      }
-      renderLocal(g: Render2D) {
-         super.renderLocal(g);
-         let x = this.children[0].size.x;
-         let y = this.size.y - g.fontHeight(smallFont);
-         g.fillText(this.value.toString(), x.vec(y), { font: smallFont, fill: this.fullColor });
-         if (this.doDot) {
-            let x0 = (x + (this.size.x - x) / 2);
-            g.fillCircle(x0.vec(2), 2, this.fullColor);
-         }
-      }
-
-   }
-   */
-
-
    export abstract class Ordered extends Single {
       abstract get ascending(): boolean;
       get gapY() { return 3; }
@@ -746,30 +722,24 @@ namespace rn {
       gap: number = 5;
       channelWidth: number = 5;
       channelRadius: number = 4;
-      private readonly schedule = new Map<Channel, number>();
-      private readonly lastUsed = new Map<Channel, number>();
-      private readonly loopAlloc = new Map<number, number>();
-      doScheduleB() {
+      private readonly lanes = new Map<Channel, number>();
+      layoutChannels() {
          let operations = this.operations();
-         if (operations.length == 0) {
-            this.schedule.clear();
+         this.lanes.clear();
+         if (operations.length == 0) 
             return;
-         }
-         let lastUse = this.lastUsed;
-         lastUse.clear();
-         this.loopAlloc.clear();
-         //new Map<Channel, number>();
+         let lastUsed = new Map<Channel,number>();
          for (let i = 0; i < operations.length; i += 1) {
             let e = operations[i].right;
             for (let cn of [e.channel]) {
                for (let cn0 = cn; cn0; cn0 = cn0.parent) {
-                  lastUse.set(cn0, i);
+                  lastUsed.set(cn0, i);
                   for (let p of cn0.peers())
-                     lastUse.set(p, i);
+                     lastUsed.set(p, i);
                }
             }
             for (let cn of e.outChannels) {
-               (lastUse.get(cn.parent) == i).assert();
+               (lastUsed.get(cn.parent) == i).assert();
                (cn.parent == e.channel).assert();
             }
          }
@@ -780,7 +750,7 @@ namespace rn {
             for (let cn of e.outChannels)
                current.add(cn);
             active.push(current.toArray());
-            for (let cn of current.filteri(cn => lastUse.get(cn) == i).toArray())
+            for (let cn of current.filteri(cn => lastUsed.get(cn) == i).toArray())
                current.delete(cn);
          }
          (active.length == operations.length).assert();
@@ -789,8 +759,6 @@ namespace rn {
             schedule.set(active[0][i], i);
          for (let i = 0; i < operations.length; i += 1) {
             let e = operations[i].right;
-            if (e.loopBack)
-               this.loopAlloc.set(i, 0);
             let activei = new Set(active[i]);
             for (let cn of [e.channel])
                schedule.has(cn).assert();
@@ -821,24 +789,18 @@ namespace rn {
 
             }
          }
-         true.assert();
-         this.schedule.clear();
          for (let [a, b] of schedule) {
             let c = a;
             while (typeof b != "number") {
                c = c.parent;
                b = schedule.get(c);
             }
-            this.schedule.set(a, b);
+            this.lanes.set(a, b);
          }
       }
       fixed(g: Render2D) {
-         //this.doSchedule();
-         this.doScheduleB();
-         let usedSchedule = max(this.schedule.values()) + 1;
-         if (!this.loopAlloc.isEmpty()) {
-            usedSchedule += max(this.loopAlloc.values()) + 1;
-         }
+         this.layoutChannels();
+         let usedSchedule = max(this.lanes.values()) + 1;
          this.widths[2] = usedSchedule * 10 + this.gap;
          this.widths[0] = 0;
          this.widths[1] = 0;
@@ -868,7 +830,7 @@ namespace rn {
          return (this.widths[0] + this.widths[1] + this.widths[2]).vec(y);
       }
       private channelX(c: Channel) {
-         return this.gap + this.schedule.get(c) * this.channelWidth * 2;
+         return this.gap + this.lanes.get(c) * this.channelWidth * 2;
       }
       private channelY(e: Operation, isNew: boolean) {
          return e.position.y + (isNew ? this.channelWidth * 2 : 0) + this.gap;
