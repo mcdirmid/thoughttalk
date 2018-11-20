@@ -1,0 +1,20 @@
+// python -m SimpleHTTPServer 8000
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "ThoughtTalk",
+      "type": "chrome",
+      "request": "launch",
+      "url": "http://localhost:8000/thoughttalk3/index.html",
+      "sourceMaps": true,
+      "userDataDir": "${workspaceRoot}/out/chrome",
+      "runtimeArgs": [
+        "--new-window", //Open in new window
+        "--remote-debugging-port=9222",
+        "--v8-cache-options=off",
+      ],
+      "webRoot": "${workspaceRoot}"
+    }
+  ]
+}
